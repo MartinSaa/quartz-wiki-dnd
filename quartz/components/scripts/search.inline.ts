@@ -16,6 +16,18 @@ interface Item {
 type SearchType = "basic" | "tags"
 let searchType: SearchType = "basic"
 let currentSearchTerm: string = ""
+
+const ES_STOPWORDS = new Set([
+  "a","al","algo","algunas","algunos","ante","antes","como","con","contra",
+  "cual","cuando","de","del","desde","donde","durante","e","el","ella","ellas",
+  "ellos","en","entre","era","erais","eran","eras","eres","es","esa","esas",
+  "ese","eso","esos","esta","estas","este","esto","estos","fue","fueron",
+  "fui","fuimos","ha","han","hasta","hay","la","las","le","les","lo","los",
+  "me","mi","mis","muy","ni","no","nos","o","os","para","pero","por","que",
+  "se","si","sin","sobre","su","sus","te","tu","tus","un","una","unas","unos",
+  "y","ya","yo",
+])
+
 const encoder = (str: string): string[] => {
   const tokens: string[] = []
   let bufferStart = -1
@@ -58,7 +70,10 @@ const encoder = (str: string): string[] => {
     tokens.push(lower.slice(bufferStart))
   }
 
-  return tokens
+  // Pure tokenizer: no stopword filtering here.
+  // Stopwords are removed from document content before indexing (see fillDocument),
+  // and from non-final query tokens in buildSearchQuery.
+  return tokens.filter((t) => t.length > 1)
 }
 
 let index = new FlexSearch.Document<Item>({
@@ -101,7 +116,32 @@ const tokenizeTerm = (term: string) => {
   return tokens.sort((a, b) => b.length - a.length) // always highlight longest terms first
 }
 
+/**
+ * Build a regex that matches the search phrase, allowing the last word to be a prefix.
+ * Stopwords in intermediate positions are treated as optional (\s+\S+\s+)? to handle
+ * phrases like "el silencio de los dioses" where stopwords were stripped from the index.
+ */
+function buildPhraseRegex(term: string): RegExp {
+  const words = term.trim().split(/\s+/).filter((t) => t.length > 0)
+  if (words.length === 0) return /(?!)/
+  // Last word is a prefix match, all others are exact word matches
+  const parts = words.map((w, i) => {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    return i === words.length - 1 ? escaped : escaped
+  })
+  // Allow optional stopwords between words
+  const pattern = parts.join("(?:\\s+\\S+)*?\\s+")
+  return new RegExp(pattern, "gi")
+}
+
+/** Returns true if text contains the search phrase (last word as prefix) */
+function containsPhrase(text: string, term: string): boolean {
+  return buildPhraseRegex(term).test(text)
+}
+
 function highlight(searchTerm: string, text: string, trim?: boolean) {
+  const isMultiWord = searchTerm.trim().split(/\s+/).filter(Boolean).length > 1
+  const phraseRegex = isMultiWord ? buildPhraseRegex(searchTerm) : null
   const tokenizedTerms = tokenizeTerm(searchTerm)
   let tokenizedText = text.split(/\s+/).filter((t) => t !== "")
 
@@ -109,37 +149,61 @@ function highlight(searchTerm: string, text: string, trim?: boolean) {
   let endIndex = tokenizedText.length - 1
   if (trim) {
     const includesCheck = (tok: string) =>
-      tokenizedTerms.some((term) => tok.toLowerCase().startsWith(term.toLowerCase()))
-    const occurrencesIndices = tokenizedText.map(includesCheck)
+      isMultiWord
+        ? false // for phrase mode, find the best window differently below
+        : tokenizedTerms.some((term) => tok.toLowerCase().startsWith(term.toLowerCase()))
 
-    let bestSum = 0
-    let bestIndex = 0
-    for (let i = 0; i < Math.max(tokenizedText.length - contextWindowWords, 0); i++) {
-      const window = occurrencesIndices.slice(i, i + contextWindowWords)
-      const windowSum = window.reduce((total, cur) => total + (cur ? 1 : 0), 0)
-      if (windowSum >= bestSum) {
-        bestSum = windowSum
-        bestIndex = i
+    if (isMultiWord) {
+      // Find where the phrase starts in the text
+      const fullText = tokenizedText.join(" ")
+      phraseRegex!.lastIndex = 0
+      const match = phraseRegex!.exec(fullText)
+      if (match) {
+        const beforeMatch = fullText.slice(0, match.index).split(/\s+/).filter(Boolean).length
+        startIndex = Math.max(beforeMatch - 5, 0)
+        endIndex = Math.min(startIndex + 2 * contextWindowWords, tokenizedText.length - 1)
+        tokenizedText = tokenizedText.slice(startIndex, endIndex)
+      } else {
+        tokenizedText = tokenizedText.slice(0, contextWindowWords)
+        endIndex = tokenizedText.length - 1
       }
-    }
-
-    startIndex = Math.max(bestIndex - contextWindowWords, 0)
-    endIndex = Math.min(startIndex + 2 * contextWindowWords, tokenizedText.length - 1)
-    tokenizedText = tokenizedText.slice(startIndex, endIndex)
-  }
-
-  const slice = tokenizedText
-    .map((tok) => {
-      // see if this tok is prefixed by any search terms
-      for (const searchTok of tokenizedTerms) {
-        if (tok.toLowerCase().includes(searchTok.toLowerCase())) {
-          const regex = new RegExp(searchTok.toLowerCase(), "gi")
-          return tok.replace(regex, `<span class="highlight">$&</span>`)
+    } else {
+      const occurrencesIndices = tokenizedText.map(includesCheck)
+      let bestSum = 0
+      let bestIndex = 0
+      for (let i = 0; i < Math.max(tokenizedText.length - contextWindowWords, 0); i++) {
+        const window = occurrencesIndices.slice(i, i + contextWindowWords)
+        const windowSum = window.reduce((total, cur) => total + (cur ? 1 : 0), 0)
+        if (windowSum >= bestSum) {
+          bestSum = windowSum
+          bestIndex = i
         }
       }
-      return tok
-    })
-    .join(" ")
+      startIndex = Math.max(bestIndex - contextWindowWords, 0)
+      endIndex = Math.min(startIndex + 2 * contextWindowWords, tokenizedText.length - 1)
+      tokenizedText = tokenizedText.slice(startIndex, endIndex)
+    }
+  }
+
+  let slice: string
+  if (isMultiWord && phraseRegex) {
+    // Highlight the phrase as a whole unit
+    const joined = tokenizedText.join(" ")
+    phraseRegex.lastIndex = 0
+    slice = joined.replace(phraseRegex, `<span class="highlight">$&</span>`)
+  } else {
+    slice = tokenizedText
+      .map((tok) => {
+        for (const searchTok of tokenizedTerms) {
+          if (tok.toLowerCase().includes(searchTok.toLowerCase())) {
+            const regex = new RegExp(searchTok.toLowerCase(), "gi")
+            return tok.replace(regex, `<span class="highlight">$&</span>`)
+          }
+        }
+        return tok
+      })
+      .join(" ")
+  }
 
   return `${startIndex === 0 ? "" : "..."}${slice}${
     endIndex === tokenizedText.length - 1 ? "" : "..."
@@ -182,6 +246,13 @@ function highlightHTML(searchTerm: string, el: HTMLElement) {
 
   for (const term of tokenizedTerms) {
     highlightTextNodes(html.body, term)
+  }
+
+  // If multi-word, also highlight phrase spans
+  const isMultiWord = currentSearchTerm.trim().split(/\s+/).filter(Boolean).length > 1
+  if (isMultiWord) {
+    const phraseRegex = buildPhraseRegex(currentSearchTerm)
+    highlightTextNodes(html.body, phraseRegex.source)
   }
 
   return html.body
@@ -441,6 +512,15 @@ async function setupSearch(searchElement: Element, currentSlug: FullSlug, data: 
     searchLayout.classList.toggle("display-results", currentSearchTerm !== "")
     searchType = currentSearchTerm.startsWith("#") ? "tags" : "basic"
 
+    // Strip stopwords from all tokens except the last one (which may be mid-type)
+    const buildSearchQuery = (term: string): string => {
+      const tokens = term.trim().split(/\s+/)
+      if (tokens.length <= 1) return term
+      const last = tokens[tokens.length - 1]
+      const rest = tokens.slice(0, -1).filter((t) => !ES_STOPWORDS.has(t.toLowerCase()) && t.length > 1)
+      return [...rest, last].join(" ").trim()
+    }
+
     let searchResults: DefaultDocumentSearchResults<Item>
     if (searchType === "tags") {
       currentSearchTerm = currentSearchTerm.substring(1).trim()
@@ -450,7 +530,7 @@ async function setupSearch(searchElement: Element, currentSlug: FullSlug, data: 
         const tag = currentSearchTerm.substring(0, separatorIndex)
         const query = currentSearchTerm.substring(separatorIndex + 1).trim()
         searchResults = await index.searchAsync({
-          query: query,
+          query: buildSearchQuery(query),
           // return at least 10000 documents, so it is enough to filter them by tag (implemented in flexsearch)
           limit: Math.max(numSearchResults, 10000),
           index: ["title", "content"],
@@ -472,7 +552,7 @@ async function setupSearch(searchElement: Element, currentSlug: FullSlug, data: 
       }
     } else if (searchType === "basic") {
       searchResults = await index.searchAsync({
-        query: currentSearchTerm,
+        query: buildSearchQuery(currentSearchTerm),
         limit: numSearchResults,
         index: ["title", "content"],
       })
@@ -483,12 +563,38 @@ async function setupSearch(searchElement: Element, currentSlug: FullSlug, data: 
       return results.length === 0 ? [] : ([...results[0].result] as number[])
     }
 
-    // order titles ahead of content
-    const allIds: Set<number> = new Set([
-      ...getByField("title"),
-      ...getByField("content"),
-      ...getByField("tags"),
-    ])
+    // order titles ahead of content, then sort by match position in title
+    const titleIds = getByField("title")
+    const contentIds = getByField("content").filter((id) => !titleIds.includes(id))
+    const tagIds = getByField("tags").filter((id) => !titleIds.includes(id) && !contentIds.includes(id))
+
+    const searchTokens = currentSearchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 1 && !ES_STOPWORDS.has(t))
+
+    const titleMatchPosition = (id: number): number => {
+      const slug = idDataMap[id]
+      const titleWords = (data[slug].title ?? "").toLowerCase().split(/\s+/)
+      for (let i = 0; i < titleWords.length; i++) {
+        if (searchTokens.some((tok) => titleWords[i].startsWith(tok))) return i
+      }
+      return titleWords.length
+    }
+
+    const sortedTitleIds = titleIds.sort((a, b) => titleMatchPosition(a) - titleMatchPosition(b))
+    let allIds: Set<number> = new Set([...sortedTitleIds, ...contentIds, ...tagIds])
+
+    // For multi-word queries, filter to only results that contain the phrase
+    const termWords = currentSearchTerm.trim().split(/\s+/).filter(Boolean)
+    if (termWords.length > 1) {
+      allIds = new Set(
+        [...allIds].filter((id) => {
+          const slug = idDataMap[id]
+          const title = (data[slug].title ?? "").toLowerCase()
+          const content = (data[slug].content ?? "").toLowerCase()
+          return containsPhrase(title, currentSearchTerm) || containsPhrase(content, currentSearchTerm)
+        }),
+      )
+    }
+
     const finalResults = [...allIds].map((id) => formatForDisplay(currentSearchTerm, id))
     await displayResults(finalResults)
   }
@@ -514,13 +620,22 @@ async function fillDocument(data: ContentIndex) {
   if (indexPopulated) return
   let id = 0
   const promises: Array<Promise<unknown>> = []
+
+  // Remove stopwords from indexed text to keep the index clean.
+  // Note: data[slug].content/title are NOT modified here — display still uses originals.
+  const stripStopwords = (text: string): string =>
+    text
+      .split(/\s+/)
+      .filter((t) => !ES_STOPWORDS.has(t.toLowerCase()))
+      .join(" ")
+
   for (const [slug, fileData] of Object.entries<ContentDetails>(data)) {
     promises.push(
       index.addAsync(id++, {
         id,
         slug: slug as FullSlug,
-        title: fileData.title,
-        content: fileData.content,
+        title: stripStopwords(fileData.title ?? ""),
+        content: stripStopwords(fileData.content ?? ""),
         tags: fileData.tags,
       }),
     )

@@ -8,47 +8,47 @@ import * as Plugin from "./quartz/plugins"
  */
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "Quartz 4",
-    pageTitleSuffix: "",
+    pageTitle: "Wiki DnD",
+    pageTitleSuffix: " | Wiki DnD",
     enableSPA: true,
     enablePopovers: true,
     analytics: {
-      provider: "plausible",
+      provider: "null",
     },
-    locale: "en-US",
-    baseUrl: "quartz.jzhao.xyz",
-    ignorePatterns: ["private", "templates", ".obsidian"],
+    locale: "es-ES",
+    baseUrl: "www.esdldwiki.online",
+    ignorePatterns: ["private", "templates", ".obsidian", ".git", ".ttxfolder", "*.bat", "*.ini", "desktop.ini", "Wiki Índice.md"],
     defaultDateType: "modified",
     theme: {
       fontOrigin: "googleFonts",
       cdnCaching: true,
       typography: {
-        header: "Schibsted Grotesk",
-        body: "Source Sans Pro",
+        header: "Cinzel",
+        body: "Crimson Text",
         code: "IBM Plex Mono",
       },
       colors: {
         lightMode: {
-          light: "#faf8f8",
-          lightgray: "#e5e5e5",
-          gray: "#b8b8b8",
-          darkgray: "#4e4e4e",
-          dark: "#2b2b2b",
-          secondary: "#284b63",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#fff23688",
+          light: "#f5e6c8",       // pergamino
+          lightgray: "#e0ccab",   // pergamino oscuro (bordes, sidebar)
+          gray: "#9c7e5a",        // marrón medio
+          darkgray: "#4a3728",    // marrón oscuro (cuerpo de texto)
+          dark: "#2c1a0e",        // casi negro caoba (headings)
+          secondary: "#8b1a1a",   // rojo D&D (links)
+          tertiary: "#c4862a",    // dorado ámbar (hover)
+          highlight: "rgba(139, 26, 26, 0.08)",
+          textHighlight: "#f5c84288",
         },
         darkMode: {
-          light: "#161618",
-          lightgray: "#393639",
-          gray: "#646464",
-          darkgray: "#d4d4d4",
-          dark: "#ebebec",
-          secondary: "#7b97aa",
-          tertiary: "#84a59d",
-          highlight: "rgba(143, 159, 169, 0.15)",
-          textHighlight: "#b3aa0288",
+          light: "#1a1a2e",       // azul noche profundo
+          lightgray: "#2d2d44",   // azul noche medio (bordes, sidebar)
+          gray: "#6b6b9a",        // gris-morado apagado
+          darkgray: "#c8c8d8",    // plata clara (cuerpo de texto)
+          dark: "#eeeef5",        // casi blanco frío (headings)
+          secondary: "#c9a84c",   // dorado (links)
+          tertiary: "#e8c06a",    // dorado brillante (hover)
+          highlight: "rgba(201, 168, 76, 0.12)",
+          textHighlight: "#c9a84c44",
         },
       },
     },
@@ -72,6 +72,7 @@ const config: QuartzConfig = {
       Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
       Plugin.Description(),
       Plugin.Latex({ renderEngine: "katex" }),
+      Plugin.LeafletMaps(),
     ],
     filters: [Plugin.RemoveDrafts()],
     emitters: [

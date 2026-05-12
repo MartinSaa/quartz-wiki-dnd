@@ -194,6 +194,16 @@ async function renderGraph(graph: HTMLElement, fullSlug: FullSlug) {
   )
 
   // calculate color
+  const folderColors: Record<string, string> = {
+    "npcs":          "#c97b3a", // naranja tostado
+    "localizaciones":"#5a8f5a", // verde
+    "bestiario":     "#a04040", // rojo sangre
+    "jugadores":     "#5a7bbf", // azul
+    "facciones":     "#8f5abf", // púrpura
+    "objetos-únicos":"#c9a84c", // dorado
+    "aventuras":     "#7a9fbf", // azul claro
+  }
+
   const color = (d: NodeData) => {
     const isCurrent = d.id === slug
     if (isCurrent) {
@@ -201,6 +211,11 @@ async function renderGraph(graph: HTMLElement, fullSlug: FullSlug) {
     } else if (visited.has(d.id) || d.id.startsWith("tags/")) {
       return computedStyleMap["--tertiary"]
     } else {
+      // Colorear por carpeta: buscar el segmento de ruta que coincida
+      const parts = d.id.toLowerCase().split("/")
+      for (const part of parts) {
+        if (folderColors[part]) return folderColors[part]
+      }
       return computedStyleMap["--gray"]
     }
   }

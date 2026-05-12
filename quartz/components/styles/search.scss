@@ -9,10 +9,11 @@
 
   & > .search-button {
     background-color: transparent;
-    border: 1px var(--lightgray) solid;
+    border: 1px solid color-mix(in srgb, var(--secondary) 40%, transparent);
     border-radius: 4px;
-    font-family: inherit;
-    font-size: inherit;
+    font-family: "Cinzel", serif;
+    font-size: 0.85em;
+    letter-spacing: 0.05em;
     height: 2rem;
     padding: 0 1rem 0 0;
     display: flex;
@@ -21,10 +22,17 @@
     cursor: pointer;
     white-space: nowrap;
     width: 100%;
+    transition: border-color 0.3s, background 0.3s;
+
+    &:hover {
+      border-color: var(--secondary);
+      background: color-mix(in srgb, var(--secondary) 8%, transparent);
+    }
 
     & > p {
       display: inline;
-      color: var(--gray);
+      color: var(--secondary);
+      opacity: 0.8;
       text-wrap: unset;
     }
 
@@ -35,7 +43,7 @@
       margin: 0 0.5rem;
 
       .search-path {
-        stroke: var(--darkgray);
+        stroke: var(--secondary);
         stroke-width: 1.5px;
         transition: stroke 0.5s ease;
       }
@@ -52,7 +60,8 @@
     height: 100vh;
     overflow-y: auto;
     display: none;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px) brightness(0.6);
+    background: rgba(0, 0, 0, 0.35);
 
     &.active {
       display: inline-block;
@@ -60,7 +69,7 @@
 
     & > .search-space {
       width: 65%;
-      margin-top: 12vh;
+      margin-top: 10vh;
       margin-left: auto;
       margin-right: auto;
 
@@ -70,24 +79,34 @@
 
       & > * {
         width: 100%;
-        border-radius: 7px;
-        background: var(--light);
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--light) 95%, var(--secondary) 5%);
         box-shadow:
-          0 14px 50px rgba(27, 33, 48, 0.12),
-          0 10px 30px rgba(27, 33, 48, 0.16);
+          0 0 0 1px color-mix(in srgb, var(--secondary) 35%, transparent),
+          0 16px 48px rgba(0, 0, 0, 0.45);
         margin-bottom: 2em;
       }
 
       & > input {
         box-sizing: border-box;
-        padding: 0.5em 1em;
-        font-family: var(--bodyFont);
+        padding: 0.6em 1.2em;
+        font-family: "Cinzel", serif;
         color: var(--dark);
         font-size: 1.1em;
-        border: 1px solid var(--lightgray);
+        border: 1px solid color-mix(in srgb, var(--secondary) 40%, transparent);
+        letter-spacing: 0.04em;
+        border-bottom: 2px solid color-mix(in srgb, var(--secondary) 50%, transparent);
+
+        &::placeholder {
+          font-family: "Cinzel", serif;
+          font-style: italic;
+          color: var(--gray);
+          opacity: 0.8;
+        }
 
         &:focus {
           outline: none;
+          border-color: var(--secondary);
         }
       }
 
@@ -181,7 +200,7 @@
             padding: 1em;
             cursor: pointer;
             transition: background 0.2s ease;
-            border-bottom: 1px solid var(--lightgray);
+            border-bottom: 1px solid color-mix(in srgb, var(--secondary) 20%, transparent);
             width: 100%;
             display: block;
             box-sizing: border-box;
@@ -199,7 +218,7 @@
             &:hover,
             &:focus,
             &.focus {
-              background: var(--lightgray);
+              background: color-mix(in srgb, var(--secondary) 10%, transparent);
             }
 
             & > h3 {
