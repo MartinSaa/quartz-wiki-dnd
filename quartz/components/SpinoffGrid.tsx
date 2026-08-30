@@ -2,12 +2,12 @@ import { QuartzComponent, QuartzComponentConstructor, QuartzComponentProps } fro
 import { resolveRelative, FullSlug } from "../util/path"
 
 const SpinoffGrid: QuartzComponent = ({ allFiles, fileData }: QuartzComponentProps) => {
-  // Detect spin-off root pages: slug pattern "Spin offs/<name>/<name>"
+  // Detect spin-off root pages: slug pattern "Spin-offs/<name>/<name>" (Quartz normalizes spaces to hyphens)
   const spinoffs = allFiles
     .filter((f) => {
       if (!f.slug) return false
       const parts = f.slug.split("/")
-      // Must be exactly 3 parts, first is "Spin offs", and last two are equal
+      // Must be exactly 3 parts, first is "Spin-offs", and last two are equal
       return (
         parts.length === 3 &&
         parts[0] === "Spin-offs" &&
