@@ -8,12 +8,7 @@ import { QuartzConfig } from "../../cfg"
 
 const filesToCopy = async (argv: Argv, cfg: QuartzConfig) => {
   // glob all non MD files in content folder and copy it over
-  // gitignore is disabled so symlinked asset folders (e.g. Samba shares) are included
-  // followSymbolicLinks is enabled to traverse symlinked directories
-  return await glob("**", argv.directory, ["**/*.md", ...cfg.configuration.ignorePatterns], {
-    gitignore: false,
-    followSymbolicLinks: true,
-  })
+  return await glob("**", argv.directory, ["**/*.md", ...cfg.configuration.ignorePatterns])
 }
 
 const copyFile = async (argv: Argv, fp: FilePath) => {
