@@ -10,7 +10,7 @@ const SpinoffGrid: QuartzComponent = ({ allFiles, fileData }: QuartzComponentPro
       // Must be exactly 3 parts, first is "Spin offs", and last two are equal
       return (
         parts.length === 3 &&
-        parts[0] === "Spin offs" &&
+        parts[0] === "Spin-offs" &&
         parts[1].toLowerCase() === parts[2].toLowerCase()
       )
     })
